@@ -1,0 +1,120 @@
+version: "3.9"
+
+services:
+  # ==============================================
+  # BACKEND API (FastAPI)
+  # ==============================================
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: videogen-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DEBUG=true
+      - REDIS_URL=redis://redis:6379/0
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@db:5432/videogen
+    env_file:
+      - ./backend/.env
+    volumes:
+      - ./backend:/app
+      - video_output:/app/output
+      - video_temp:/app/temp
+    depends_on:
+      - db
+      - redis
+    restart: unless-stopped
+
+  # ==============================================
+  # FRONTEND (Next.js)
+  # ==============================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: videogen-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  # ==============================================
+  # DATABASE (PostgreSQL)
+  # ==============================================
+  db:
+    image: postgres:16-alpine
+    container_name: videogen-db
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: videogen
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+    restart: unless-stopped
+
+  # ==============================================
+  # REDIS (Task Queue & Caching)
+  # ==============================================
+  redis:
+    image: redis:7-alpine
+    container_name: videogen-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
+  # ==============================================
+  # CELERY WORKER (Background Tasks)
+  # ==============================================
+  celery-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: videogen-celery
+    command: celery -A app.worker worker --loglevel=info --concurrency=2
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@db:5432/videogen
+    env_file:
+      - ./backend/.env
+    volumes:
+      - ./backend:/app
+      - video_output:/app/output
+      - video_temp:/app/temp
+    depends_on:
+      - redis
+      - db
+    restart: unless-stopped
+
+  # ==============================================
+  # n8n (Workflow Automation)
+  # ==============================================
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: videogen-n8n
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=admin
+      - N8N_BASIC_AUTH_PASSWORD=videogen2024
+      - WEBHOOK_URL=http://localhost:5678/
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./n8n/workflows:/home/node/.n8n/workflows
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+  n8n_data:
+  video_output:
+  video_temp:
