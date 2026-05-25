@@ -1,0 +1,82 @@
+{
+  "name": "Batch Video Generation (Multiple Topics)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "batch-generate",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "webhook-batch",
+      "name": "Batch Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "body.topics",
+        "options": {}
+      },
+      "id": "split-topics",
+      "name": "Split Topics",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [470, 300]
+    },
+    {
+      "parameters": {
+        "amount": 5,
+        "unit": "seconds"
+      },
+      "id": "rate-limit",
+      "name": "Rate Limit (5s delay)",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [690, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://backend:8000/api/v1/videos/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"topic\": \"{{ $json }}\",\n  \"tone\": \"informative\",\n  \"duration_seconds\": 60,\n  \"auto_upload\": false\n}",
+        "options": { "timeout": 300000 }
+      },
+      "id": "generate-each",
+      "name": "Generate Each Video",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [910, 300]
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "destinationFieldName": "results"
+      },
+      "id": "aggregate-results",
+      "name": "Aggregate Results",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [1130, 300]
+    }
+  ],
+  "connections": {
+    "Batch Webhook": {
+      "main": [[{ "node": "Split Topics", "type": "main", "index": 0 }]]
+    },
+    "Split Topics": {
+      "main": [[{ "node": "Rate Limit (5s delay)", "type": "main", "index": 0 }]]
+    },
+    "Rate Limit (5s delay)": {
+      "main": [[{ "node": "Generate Each Video", "type": "main", "index": 0 }]]
+    },
+    "Generate Each Video": {
+      "main": [[{ "node": "Aggregate Results", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": { "executionOrder": "v1" },
+  "tags": [{ "name": "batch" }, { "name": "automation" }]
+}

@@ -1,0 +1,221 @@
+{
+  "name": "Video Shorts Generation Pipeline",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "video-generate",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://backend:8000/api/v1/scripts/generate",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "topic", "value": "={{ $json.body.topic }}" },
+            { "name": "tone", "value": "={{ $json.body.tone || 'informative' }}" },
+            { "name": "duration_seconds", "value": "={{ $json.body.duration || 60 }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "generate-script",
+      "name": "Generate Script",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [470, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://backend:8000/api/v1/voices/generate",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "text", "value": "={{ $json.full_text }}" },
+            { "name": "voice_id", "value": "={{ $('Webhook Trigger').item.json.body.voice_id || 'default' }}" },
+            { "name": "provider", "value": "elevenlabs" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "generate-voice",
+      "name": "Generate Voice",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [690, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://backend:8000/api/v1/media/auto-collect",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "script_id", "value": "={{ $('Generate Script').item.json.id }}" },
+            { "name": "clips_needed", "value": "5" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "collect-media",
+      "name": "Collect Media",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [690, 500]
+    },
+    {
+      "parameters": {
+        "mode": "passthrough"
+      },
+      "id": "merge-assets",
+      "name": "Merge Assets",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2.1,
+      "position": [910, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://backend:8000/api/v1/videos/generate",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "topic", "value": "={{ $('Webhook Trigger').item.json.body.topic }}" },
+            { "name": "tone", "value": "={{ $('Webhook Trigger').item.json.body.tone || 'informative' }}" },
+            { "name": "auto_upload", "value": "={{ $('Webhook Trigger').item.json.body.auto_upload || false }}" },
+            { "name": "upload_platforms", "value": "={{ $('Webhook Trigger').item.json.body.platforms || [] }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "render-video",
+      "name": "Render Video",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1130, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $('Webhook Trigger').item.json.body.auto_upload }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "check-auto-upload",
+      "name": "Auto Upload?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1350, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://backend:8000/api/v1/uploads/publish",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "video_id", "value": "={{ $('Render Video').item.json.id }}" },
+            { "name": "platforms", "value": "={{ $('Webhook Trigger').item.json.body.platforms }}" },
+            { "name": "title", "value": "={{ $('Generate Script').item.json.title }}" },
+            { "name": "description", "value": "={{ $('Generate Script').item.json.full_text.substring(0, 200) }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "publish-video",
+      "name": "Publish to Platforms",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1570, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ status: 'completed', video_id: $('Render Video').item.json.id, published: true }) }}"
+      },
+      "id": "respond-success",
+      "name": "Respond Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1790, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ status: 'completed', video_id: $('Render Video').item.json.id, published: false }) }}"
+      },
+      "id": "respond-no-upload",
+      "name": "Respond (No Upload)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1570, 500]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [{ "node": "Generate Script", "type": "main", "index": 0 }]
+      ]
+    },
+    "Generate Script": {
+      "main": [
+        [
+          { "node": "Generate Voice", "type": "main", "index": 0 },
+          { "node": "Collect Media", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Generate Voice": {
+      "main": [
+        [{ "node": "Merge Assets", "type": "main", "index": 0 }]
+      ]
+    },
+    "Collect Media": {
+      "main": [
+        [{ "node": "Merge Assets", "type": "main", "index": 1 }]
+      ]
+    },
+    "Merge Assets": {
+      "main": [
+        [{ "node": "Render Video", "type": "main", "index": 0 }]
+      ]
+    },
+    "Render Video": {
+      "main": [
+        [{ "node": "Auto Upload?", "type": "main", "index": 0 }]
+      ]
+    },
+    "Auto Upload?": {
+      "main": [
+        [{ "node": "Publish to Platforms", "type": "main", "index": 0 }],
+        [{ "node": "Respond (No Upload)", "type": "main", "index": 0 }]
+      ]
+    },
+    "Publish to Platforms": {
+      "main": [
+        [{ "node": "Respond Success", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": [
+    { "name": "video-generation" },
+    { "name": "automation" }
+  ]
+}
