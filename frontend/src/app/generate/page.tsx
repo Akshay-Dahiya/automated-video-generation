@@ -12,7 +12,9 @@ import {
   Upload,
   ArrowRight,
   Check,
+  AlertCircle,
 } from "lucide-react";
+import { scriptAPI, videoAPI } from "@/lib/api";
 
 const steps = [
   { id: "topic", label: "Topic", icon: Sparkles },
@@ -30,14 +32,44 @@ export default function GeneratePage() {
   const [tone, setTone] = useState("informative");
   const [duration, setDuration] = useState(60);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [generatedScript, setGeneratedScript] = useState<any>(null);
+  const [videoJob, setVideoJob] = useState<any>(null);
+  const [error, setError] = useState("");
 
-  const handleGenerate = async () => {
+  const handleGenerateScript = async () => {
     setIsGenerating(true);
-    // Simulated delay
-    setTimeout(() => {
-      setIsGenerating(false);
+    setError("");
+    try {
+      const result = await scriptAPI.generate({
+        topic,
+        tone,
+        duration_seconds: duration,
+      });
+      setGeneratedScript(result);
       setCurrentStep(1);
-    }, 2000);
+    } catch (e: any) {
+      setError(e.message || "Failed to generate script");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleGenerateFullVideo = async () => {
+    setIsGenerating(true);
+    setError("");
+    try {
+      const result = await videoAPI.generate({
+        topic,
+        tone,
+        duration_seconds: duration,
+      });
+      setVideoJob(result);
+      setCurrentStep(5); // Jump to render step
+    } catch (e: any) {
+      setError(e.message || "Failed to start video generation");
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   return (
@@ -159,27 +191,119 @@ export default function GeneratePage() {
               </div>
 
               {/* Generate Button */}
-              <motion.button
-                whileHover={{ scale: 1.01 }}
-                whileTap={{ scale: 0.99 }}
-                onClick={handleGenerate}
-                disabled={!topic || isGenerating}
-                className="w-full glass-button flex items-center justify-center gap-2 mt-4 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isGenerating ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    Generating...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-4 h-4" />
-                    Generate Script
-                    <ArrowRight className="w-4 h-4" />
-                  </>
-                )}
-              </motion.button>
+              <div className="flex gap-3 mt-4">
+                <motion.button
+                  whileHover={{ scale: 1.01 }}
+                  whileTap={{ scale: 0.99 }}
+                  onClick={handleGenerateScript}
+                  disabled={!topic || isGenerating}
+                  className="flex-1 glass-button flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isGenerating ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <FileText className="w-4 h-4" />
+                      Generate Script
+                    </>
+                  )}
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.01 }}
+                  whileTap={{ scale: 0.99 }}
+                  onClick={handleGenerateFullVideo}
+                  disabled={!topic || isGenerating}
+                  className="flex-1 px-6 py-3 rounded-xl border border-accent-cyan/30 bg-accent-cyan/10 font-medium text-accent-cyan hover:bg-accent-cyan/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  Full Auto Pipeline
+                  <ArrowRight className="w-4 h-4" />
+                </motion.button>
+              </div>
+
+              {error && (
+                <div className="flex items-center gap-2 mt-3 p-3 rounded-lg bg-red-500/10 border border-red-500/20">
+                  <AlertCircle className="w-4 h-4 text-red-400" />
+                  <span className="text-sm text-red-300">{error}</span>
+                </div>
+              )}
             </div>
+          </motion.div>
+        )}
+
+        {/* Generated Script Display */}
+        {currentStep >= 1 && generatedScript && (
+          <motion.div
+            key="script-result"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="glass-card p-8"
+          >
+            <div className="flex items-center gap-2 mb-4">
+              <Check className="w-5 h-5 text-emerald-400" />
+              <h2 className="text-xl font-semibold text-white">Generated Script</h2>
+              <span className="ml-auto px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-xs">
+                Demo Mode
+              </span>
+            </div>
+            <h3 className="text-lg text-primary-300 font-medium mb-4">{generatedScript.title}</h3>
+            <div className="space-y-3">
+              {generatedScript.sections?.map((section: any, idx: number) => (
+                <div key={idx} className="p-4 rounded-xl bg-white/[0.03] border border-white/5">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className={`px-2 py-0.5 rounded text-xs font-medium uppercase ${
+                      section.type === 'hook' ? 'bg-yellow-500/20 text-yellow-400' :
+                      section.type === 'cta' ? 'bg-pink-500/20 text-pink-400' :
+                      'bg-primary-500/20 text-primary-400'
+                    }`}>{section.type}</span>
+                    <span className="text-xs text-dark-200">~{section.estimated_duration}s</span>
+                  </div>
+                  <p className="text-sm text-dark-50">{section.text}</p>
+                  <p className="text-xs text-dark-300 mt-2 italic">Visual: {section.visual_suggestion}</p>
+                </div>
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-2 mt-4">
+              {generatedScript.hashtags?.map((tag: string) => (
+                <span key={tag} className="px-2 py-1 rounded-lg bg-primary-600/20 text-primary-300 text-xs">
+                  {tag}
+                </span>
+              ))}
+            </div>
+            <p className="text-xs text-dark-300 mt-3">
+              {generatedScript.word_count} words · ~{generatedScript.estimated_duration}s estimated duration
+            </p>
+          </motion.div>
+        )}
+
+        {/* Video Job Status */}
+        {videoJob && (
+          <motion.div
+            key="video-job"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="glass-card p-6"
+          >
+            <div className="flex items-center gap-2 mb-3">
+              <Film className="w-5 h-5 text-accent-cyan" />
+              <h2 className="text-lg font-semibold text-white">Video Generation Started</h2>
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="flex-1 h-2 rounded-full bg-white/10 overflow-hidden">
+                <motion.div
+                  initial={{ width: 0 }}
+                  animate={{ width: `${(videoJob.progress || 0.1) * 100}%` }}
+                  className="h-full rounded-full bg-gradient-to-r from-primary-500 to-accent-cyan"
+                />
+              </div>
+              <span className="text-sm text-dark-100 capitalize">{videoJob.status?.replace(/_/g, ' ')}</span>
+            </div>
+            <p className="text-xs text-dark-300 mt-2">
+              Job ID: {videoJob.id} · Topic: {videoJob.topic}
+            </p>
           </motion.div>
         )}
       </AnimatePresence>

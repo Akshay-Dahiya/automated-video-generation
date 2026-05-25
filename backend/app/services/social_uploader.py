@@ -29,6 +29,13 @@ class SocialUploaderService:
         
         Supports YouTube Shorts, Instagram Reels, and TikTok.
         """
+        # DEMO MODE: Return mock publish results
+        if settings.DEMO_MODE:
+            from app.services.demo_data import demo_service
+            return await demo_service.publish(
+                video_id=video_id, platforms=platforms, title=title, description=description
+            )
+
         results = []
         
         for platform in platforms:

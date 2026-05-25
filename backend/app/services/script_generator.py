@@ -58,6 +58,13 @@ Guidelines:
         Returns:
             Complete script with sections, timing, and visual suggestions
         """
+        # DEMO MODE: Return mock data without calling OpenAI
+        if settings.DEMO_MODE:
+            from app.services.demo_data import demo_service
+            return await demo_service.generate_script(
+                topic=topic, tone=tone, duration=duration, style=style
+            )
+
         import openai
 
         client = openai.AsyncOpenAI(api_key=settings.OPENAI_API_KEY)

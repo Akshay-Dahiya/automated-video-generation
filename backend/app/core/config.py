@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     API_VERSION: str = "v1"
     SECRET_KEY: str = "your-secret-key-change-in-production"
 
+    # Demo Mode - runs without real API keys (free, no cost)
+    DEMO_MODE: bool = True
+
     # CORS
     ALLOWED_ORIGINS: List[str] = [
         "http://localhost:3000",

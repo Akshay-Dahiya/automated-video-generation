@@ -43,6 +43,11 @@ class MediaCollectorService:
         Returns:
             List of media items with download URLs
         """
+        # DEMO MODE: Return mock media results
+        if settings.DEMO_MODE:
+            from app.services.demo_data import demo_service
+            return await demo_service.search_media(query=query, per_page=per_page)
+
         if provider == "pexels":
             return await self._search_pexels(
                 query, media_type, orientation, min_duration, max_duration, per_page
@@ -210,6 +215,11 @@ class MediaCollectorService:
         Analyzes the script sections, extracts visual keywords,
         and fetches matching stock footage for each scene.
         """
+        # DEMO MODE: Return mock auto-collected media
+        if settings.DEMO_MODE:
+            from app.services.demo_data import demo_service
+            return await demo_service.auto_collect_media(script_id=script_id, clips_needed=clips_needed)
+
         import openai
         
         # Get script from database

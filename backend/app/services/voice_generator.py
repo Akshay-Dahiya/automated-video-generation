@@ -88,6 +88,11 @@ class VoiceGeneratorService:
         Returns:
             Audio file URL, duration, and word timestamps
         """
+        # DEMO MODE: Return mock data without calling any TTS API
+        if settings.DEMO_MODE:
+            from app.services.demo_data import demo_service
+            return await demo_service.generate_voice(text=text, voice_id=voice_id)
+
         if provider == "elevenlabs":
             return await self._generate_elevenlabs(text, voice_id, speed)
         elif provider == "openai":
