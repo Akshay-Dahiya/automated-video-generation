@@ -6,12 +6,17 @@ Tracks video generation metrics, platform performance, and system stats.
 from typing import Optional
 from datetime import datetime, timedelta
 
+from app.core.config import settings
+
 
 class AnalyticsService:
     """Service for tracking and reporting analytics."""
 
     async def get_dashboard_stats(self) -> dict:
         """Get overview dashboard statistics."""
+        if settings.DEMO_MODE:
+            from app.services.demo_data import demo_service
+            return await demo_service.get_dashboard_stats()
         return {
             "total_videos": 0,
             "videos_published": 0,
@@ -25,18 +30,16 @@ class AnalyticsService:
 
     async def get_video_performance(self, video_id: str) -> Optional[dict]:
         """Get performance metrics for a specific video."""
-        # TODO: Fetch from platform APIs
-        return {
-            "video_id": video_id,
-            "platforms": [],
-            "total_views": 0,
-            "total_likes": 0,
-            "total_comments": 0,
-            "total_shares": 0,
-        }
+        if settings.DEMO_MODE:
+            from app.services.demo_data import demo_service
+            return await demo_service.get_video_performance(video_id)
+        return None
 
     async def get_trends(self, days: int = 30) -> dict:
         """Get generation and performance trends."""
+        if settings.DEMO_MODE:
+            from app.services.demo_data import demo_service
+            return await demo_service.get_trends(days=days)
         return {
             "period_days": days,
             "daily_generations": [],
@@ -49,4 +52,7 @@ class AnalyticsService:
         self, limit: int = 50, offset: int = 0, status: Optional[str] = None
     ) -> dict:
         """Get video generation logs."""
+        if settings.DEMO_MODE:
+            from app.services.demo_data import demo_service
+            return await demo_service.get_logs(limit=limit, offset=offset, status=status)
         return {"logs": [], "total": 0}

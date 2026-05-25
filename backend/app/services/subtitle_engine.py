@@ -71,6 +71,11 @@ class SubtitleEngineService:
         Returns:
             Subtitle file path and word timestamps
         """
+        # DEMO MODE: Return mock subtitle data
+        if settings.DEMO_MODE:
+            from app.services.demo_data import demo_service
+            return await demo_service.generate_subtitles(audio_path=audio_path, style=style)
+
         # Transcribe audio with Whisper (word-level timestamps)
         timestamps = await self._transcribe_whisper(audio_path, language)
         

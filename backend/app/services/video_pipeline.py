@@ -48,6 +48,8 @@ class VideoPipelineService:
         4. Generate subtitles
         5. Render video
         6. (Optional) Upload to platforms
+        
+        In DEMO_MODE, simulates the pipeline with mock data (no API calls).
         """
         job = self._jobs.get(job_id)
         if not job:
@@ -55,6 +57,51 @@ class VideoPipelineService:
 
         try:
             params = job["params"]
+
+            # DEMO MODE: Fast simulated pipeline
+            if settings.DEMO_MODE:
+                import asyncio
+                from app.services.demo_data import demo_service
+
+                job["status"] = "generating_script"
+                job["progress"] = 0.15
+                await asyncio.sleep(0.5)  # Simulate work
+                
+                script = await demo_service.generate_script(
+                    topic=params["topic"],
+                    tone=params.get("tone", "informative"),
+                    duration=params.get("duration_seconds", 60),
+                )
+                job["script_id"] = script["id"]
+                job["progress"] = 0.3
+
+                job["status"] = "generating_voice"
+                await asyncio.sleep(0.3)
+                voice_result = await demo_service.generate_voice(text=script["full_text"])
+                job["progress"] = 0.5
+
+                job["status"] = "collecting_media"
+                await asyncio.sleep(0.3)
+                media_result = await demo_service.auto_collect_media(script_id=script["id"])
+                job["progress"] = 0.65
+
+                job["status"] = "generating_subtitles"
+                await asyncio.sleep(0.2)
+                subtitle_result = await demo_service.generate_subtitles(text=script["full_text"])
+                job["progress"] = 0.8
+
+                job["status"] = "rendering"
+                await asyncio.sleep(0.5)
+                render_result = await demo_service.render_video()
+                job["progress"] = 0.95
+
+                # Complete
+                job["status"] = "completed"
+                job["progress"] = 1.0
+                job["video_url"] = render_result["path"]
+                job["duration"] = render_result["duration"]
+                job["completed_at"] = datetime.utcnow().isoformat()
+                return
 
 
             # Step 1: Script Generation
@@ -150,6 +197,11 @@ class VideoPipelineService:
         self, status: Optional[str] = None, limit: int = 20, offset: int = 0
     ) -> dict:
         """List all jobs with optional filtering."""
+        # If no jobs exist and in demo mode, return demo data
+        if not self._jobs and settings.DEMO_MODE:
+            from app.services.demo_data import demo_service
+            return await demo_service.list_videos(status=status, limit=limit, offset=offset)
+        
         jobs = list(self._jobs.values())
         if status:
             jobs = [j for j in jobs if j["status"] == status]

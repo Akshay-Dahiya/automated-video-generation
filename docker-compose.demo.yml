@@ -1,0 +1,37 @@
+version: "3.9"
+
+# ============================================================
+# DEMO MODE - Minimal setup, no API keys needed!
+# Just run: docker-compose -f docker-compose.demo.yml up
+# ============================================================
+
+services:
+  # Backend API (FastAPI) - Demo Mode
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: videogen-backend-demo
+    ports:
+      - "8000:8000"
+    environment:
+      - DEMO_MODE=true
+      - DEBUG=true
+    volumes:
+      - ./backend:/app
+    restart: unless-stopped
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # Frontend (Next.js)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: videogen-frontend-demo
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    depends_on:
+      - backend
+    restart: unless-stopped
